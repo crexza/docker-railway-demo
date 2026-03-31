@@ -1,13 +1,14 @@
 import Fastify from 'fastify';
 import axios from 'axios';
-import 'dotenv/config'; 
+import 'dotenv/config';
+import { fileURLToPath } from 'url';
 
-//this is an api for us to look for obs in our area. The / route will return all endpoints as array
+// this is an api for us to look for jobs in our area. The / route will return all endpoints as array
 const app = Fastify({ logger: true });
 
 const LINKUP_API_KEY = process.env.LINKUP_API_KEY;
 const LINKUP_BASE_URL = 'https://api.linkup.so/v1';
-console.log({LINKUP_API_KEY})
+
 app.get('/health', async () => {
   return { status: 'ok', version: '1.2.0' };
 });
@@ -26,11 +27,12 @@ app.get('/', async () => {
 });
 
 app.post('/api/search', async (request, reply) => {
-  const { query, depth = 'standard' } = request.body;
+  const { query, depth = 'standard' } = request.body || {};
 
   if (!query || typeof query !== 'string' || query.trim() === '') {
     return reply.status(400).send({ error: 'query must be a non-empty string' });
   }
+
   if (!['standard', 'deep'].includes(depth)) {
     return reply.status(400).send({ error: 'depth must be "standard" or "deep"' });
   }
@@ -39,8 +41,14 @@ app.post('/api/search', async (request, reply) => {
     const response = await axios.post(
       `${LINKUP_BASE_URL}/search`,
       { q: query.trim(), depth, outputType: 'searchResults' },
-      { headers: { Authorization: `Bearer ${LINKUP_API_KEY}`, 'Content-Type': 'application/json' } }
+      {
+        headers: {
+          Authorization: `Bearer ${LINKUP_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
     );
+
     return response.data;
   } catch (err) {
     const status = err.response?.status || 500;
@@ -62,13 +70,20 @@ app.get('/api/jobs', async (request, reply) => {
     const response = await axios.post(
       `${LINKUP_BASE_URL}/search`,
       { q: searchQuery, depth: 'standard', outputType: 'searchResults' },
-      { headers: { Authorization: `Bearer ${LINKUP_API_KEY}`, 'Content-Type': 'application/json' } }
+      {
+        headers: {
+          Authorization: `Bearer ${LINKUP_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
     );
+
     const results = response.data.results || [];
+
     return {
       query: searchQuery,
       count: results.length,
-      results: results.map(r => ({
+      results: results.map((r) => ({
         title: r.name,
         url: r.url,
         snippet: r.content?.slice(0, 300),
@@ -96,13 +111,20 @@ app.get('/api/company', async (request, reply) => {
         depth: 'standard',
         outputType: 'searchResults',
       },
-      { headers: { Authorization: `Bearer ${LINKUP_API_KEY}`, 'Content-Type': 'application/json' } }
+      {
+        headers: {
+          Authorization: `Bearer ${LINKUP_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      }
     );
+
     const results = response.data.results || [];
+
     return {
       company: name.trim(),
       count: results.length,
-      results: results.map(r => ({
+      results: results.map((r) => ({
         title: r.name,
         url: r.url,
         snippet: r.content?.slice(0, 300),
@@ -118,13 +140,17 @@ app.get('/api/company', async (request, reply) => {
 const start = async () => {
   try {
     await app.listen({ port: parseInt(process.env.PORT || '3000'), host: '0.0.0.0' });
+    console.log('Server running on http://localhost:3000');
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
 };
 
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+const __filename = fileURLToPath(import.meta.url);
+
+if (process.argv[1] === __filename) {
   start();
 }
+
 export { app };
